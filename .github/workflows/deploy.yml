@@ -1,0 +1,54 @@
+# Deploy frontend → Ubuntu ด้วย PM2 (vite preview พอร์ต 4173 — ดู ecosystem.config.cjs + vite.config.ts)
+# ส่งโค้ดด้วย tar ผ่าน SSH — ไม่ต้องติดตั้ง rsync บนเซิร์ฟเวอร์
+#
+# Secrets:
+#   SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
+#   DEPLOY_PATH — รากแอปบนเซิร์ฟเวอร์ (มี package.json + ecosystem.config.cjs) เช่น /var/www/invoice-fe
+#   VITE_API_URL — optional; ใช้ตอน npm run build บนเซิร์ฟเวอร์ (ว่าง = same-origin ตาม src/lib/config.ts)
+#
+# บนเซิร์ฟเวอร์: Node 22, npm, pm2 (sudo npm i -g pm2), pm2 startup systemd ครั้งแรก
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenSSH client
+        run: sudo apt-get update -qq && sudo apt-get install -y openssh-client
+
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload app to server (tar over SSH)
+        run: |
+          tar -C . -czf - \
+            --exclude='./node_modules' \
+            --exclude='./dist' \
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='./logs' \
+            --exclude='./.env' \
+            . | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "bash -lc 'set -e; mkdir -p \"${{ secrets.DEPLOY_PATH }}\"; tar -xzf - -C \"${{ secrets.DEPLOY_PATH }}\"'"
+
+      - name: npm ci + build + PM2 reload on Ubuntu
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "bash -lc 'set -e; cd \"${{ secrets.DEPLOY_PATH }}\"; mkdir -p logs; export VITE_API_URL=\"${{ secrets.VITE_API_URL }}\"; npm ci; npm run build; pm2 reload ecosystem.config.cjs --only invoice-fe --update-env || pm2 start ecosystem.config.cjs; pm2 save'"

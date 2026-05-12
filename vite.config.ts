@@ -13,6 +13,12 @@ export default defineConfig(({ mode }) => {
       react(),
       babel({ presets: [reactCompilerPreset()] }),
     ],
+    preview: {
+      // ให้ตรงกับ Caddy reverse_proxy และ PM2 (invoice-fe)
+      port: 4173,
+      strictPort: true,
+      host: '127.0.0.1',
+    },
     server: {
       proxy: {
         '/api': {
