@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
       port: 4173,
       strictPort: true,
       host: '127.0.0.1',
+      // ปิดการบล็อก Host ของ Vite 6+ ตอน preview (อยู่หลัง reverse proxy ที่ 127.0.0.1 เท่านั้น)
+      // ถ้าระบุเป็น array บางครั้งยังไม่ตรงกับ Host ที่ส่งมา — ใช้ true ให้ผ่านทุก Host
+      allowedHosts: true,
     },
     server: {
       proxy: {
