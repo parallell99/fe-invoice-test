@@ -157,8 +157,83 @@ export async function loginRequest(
   return { user: data.user }
 }
 
+export async function registerRequest(
+  user_name: string,
+  password: string,
+): Promise<{ user: AuthUser }> {
+  const res = await apiFetch('/api/auth/register', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ user_name, password }),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let errFromBody: string | undefined
+    try {
+      errFromBody = (JSON.parse(text) as { error?: string }).error
+    } catch {
+      /* ignore */
+    }
+    if (res.status === 502 || res.status === 503) {
+      throw new Error(
+        errFromBody ??
+          'ต่อ API ไม่ได้ (502) — รัน backend ก่อน: จากรากโปรเจกต์ `npm install` แล้ว `npm run dev` หรือในโฟลเดอร์ BE `npm run dev` (พอร์ต 4000)',
+      )
+    }
+    throw new Error(errFromBody ?? `Register failed (${res.status})`)
+  }
+  let data: { user?: AuthUser; error?: string }
+  try {
+    data = JSON.parse(text) as { user?: AuthUser; error?: string }
+  } catch {
+    throw new Error('Invalid JSON from server')
+  }
+  if (!data.user) throw new Error('No user in response')
+  return { user: data.user }
+}
+
 export async function logoutRequest(): Promise<void> {
   await apiFetch('/api/auth/logout', { method: 'POST' })
+}
+
+export type PatchProfileBody = {
+  user_name?: string
+  current_password?: string
+  new_password?: string
+}
+
+export async function patchAuthProfile(
+  body: PatchProfileBody,
+): Promise<{ user: AuthUser }> {
+  const res = await apiFetch('/api/auth/me', {
+    method: 'PATCH',
+    headers: jsonHeaders,
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let errFromBody: string | undefined
+    try {
+      errFromBody = (JSON.parse(text) as { error?: string }).error
+    } catch {
+      /* ignore */
+    }
+    if (res.status === 502 || res.status === 503) {
+      throw new Error(
+        errFromBody ??
+          'ต่อ API ไม่ได้ — รัน backend ที่พอร์ต 4000 ก่อน',
+      )
+    }
+    throw new Error(errFromBody ?? `Update failed (${res.status})`)
+  }
+  let data: { user?: AuthUser; error?: string }
+  try {
+    data = JSON.parse(text) as { user?: AuthUser; error?: string }
+  } catch {
+    throw new Error('Invalid JSON from server')
+  }
+  if (!data.user) throw new Error('No user in response')
+  return { user: data.user }
 }
 
 export async function fetchInvoicesList(): Promise<InvoiceListRow[]> {

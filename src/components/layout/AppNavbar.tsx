@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../theme/ThemeProvider'
@@ -71,6 +71,9 @@ function IconSun() {
   )
 }
 
+const menuItemClass =
+  'block w-full px-4 py-2.5 text-left text-body text-ink no-underline transition-colors hover:bg-surface dark:hover:bg-white/5'
+
 export type AppNavbarProps = {
   avatarSrc?: string
   avatarAlt?: string
@@ -78,8 +81,7 @@ export type AppNavbarProps = {
   onThemeToggle?: () => void
 }
 
-const defaultAvatar =
-  'https://i.pravatar.cc/160?img=47'
+const defaultAvatar = 'https://i.pravatar.cc/160?img=47'
 
 export default function AppNavbar({
   avatarSrc = defaultAvatar,
@@ -91,11 +93,38 @@ export default function AppNavbar({
   const onThemeToggle = onThemeToggleProp ?? toggleTheme
   const isDark = theme === 'dark'
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuWrapRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (
+        menuWrapRef.current &&
+        !menuWrapRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
+
+  const closeMenu = () => setMenuOpen(false)
+
   return (
     <header className="sticky top-0 z-40 flex h-[72px] w-full shrink-0 items-stretch justify-between self-start bg-header-bar shadow-sm md:h-[88px]">
       <Link
         to="/"
-        className="flex h-full items-stretch outline-none ring-primary focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-header-bar)"
+        className="flex h-full items-stretch outline-none ring-primary focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-header-bar"
         aria-label="หน้าแรก"
       >
         <span className="flex h-full w-[96px] items-center justify-center rounded-br-[22px] bg-primary transition-colors hover:bg-primary-light md:w-[103px] md:rounded-br-[24px]">
@@ -112,24 +141,7 @@ export default function AppNavbar({
             className="inline-block h-4 w-14 rounded bg-white/15"
             aria-hidden
           />
-        ) : user ? (
-          <button
-            type="button"
-            onClick={() => {
-              void logout()
-            }}
-            className="text-body-tight font-bold text-white/90 transition-opacity hover:opacity-80"
-          >
-            Log out
-          </button>
-        ) : (
-          <Link
-            to="/login"
-            className="text-body-tight font-bold text-white/90 transition-opacity hover:opacity-80"
-          >
-            Log in
-          </Link>
-        )}
+        ) : null}
         <button
           type="button"
           onClick={onThemeToggle}
@@ -140,13 +152,82 @@ export default function AppNavbar({
           {isDark ? <IconSun /> : <IconMoon />}
         </button>
         <div className="h-10 w-px shrink-0 bg-navbar-divider" aria-hidden />
-        <img
-          src={avatarSrc}
-          alt={avatarAlt}
-          width={40}
-          height={40}
-          className="size-10 shrink-0 rounded-full border-2 border-white/15 object-cover"
-        />
+        <div className="relative shrink-0" ref={menuWrapRef}>
+          <button
+            type="button"
+            id="navbar-account-trigger"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-controls={menuOpen ? menuId : undefined}
+            onClick={() => setMenuOpen((o) => !o)}
+            className="rounded-full ring-white/30 transition-shadow hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-header-bar"
+          >
+            <img
+              src={avatarSrc}
+              alt={avatarAlt || (user ? user.user_name : 'Account menu')}
+              width={40}
+              height={40}
+              className="size-10 rounded-full border-2 border-white/15 object-cover"
+            />
+          </button>
+          {menuOpen ? (
+            <div
+              id={menuId}
+              role="menu"
+              aria-labelledby="navbar-account-trigger"
+              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[220px] rounded-lg border border-slate-light bg-white py-1 shadow-lg dark:border-white/10 dark:bg-navy-dark"
+            >
+              {user ? (
+                <>
+                  <p
+                    className="border-b border-slate-light px-4 py-2 text-body-tight text-muted dark:border-white/10"
+                    role="presentation"
+                  >
+                    {user.user_name}
+                  </p>
+                  <Link
+                    to="/profile"
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={closeMenu}
+                  >
+                    Edit profile
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${menuItemClass} font-medium text-error`}
+                    onClick={() => {
+                      closeMenu()
+                      void logout()
+                    }}
+                  >
+                    Log out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={closeMenu}
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/register"
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={closeMenu}
+                  >
+                    Create account
+                  </Link>
+                </>
+              )}
+            </div>
+          ) : null}
+        </div>
       </nav>
     </header>
   )
